@@ -80,6 +80,15 @@ export function useMatch(
   const [selectedBatterId, setSelectedBatterId] = useState<string | null>(null)
 
   const loadMatchData = useCallback(async () => {
+    if (!matchId) {
+      setLoading(false)
+      setMatch(null)
+      setEvents([])
+      setTeams({})
+      setPlayers({})
+      setError(null)
+      return
+    }
     try {
       setLoading(true)
       const matchRecord = await repo.getMatch(matchId)

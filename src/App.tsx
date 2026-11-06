@@ -14,6 +14,7 @@ import { SettingsScreen } from './ui/settings/SettingsScreen'
 import { TournamentsListScreen } from './ui/tournament/TournamentsListScreen'
 import { TournamentDashboardScreen } from './ui/tournament/TournamentDashboardScreen'
 import { PublicTournamentScreen } from './ui/tournament/PublicTournamentScreen'
+import { ErrorBoundary } from './ui/components/ErrorBoundary'
 import { AuthProvider } from './auth/useAuth'
 import { syncWorker } from './sync/syncWorker'
 import { useMatch } from './state/useMatch'
@@ -103,6 +104,25 @@ function AppContent() {
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
   }, [])
+
+  // Guard against missing required IDs for specific views
+  useEffect(() => {
+    if (view === 'scoring' && !activeMatchId) setView('home')
+    if (view === 'scorecard' && !activeMatchId) setView('home')
+    if (view === 'tournament_dashboard' && !activeTournamentId) setView('tournaments')
+    if (view === 'team_detail' && !selectedTeam) setView('teams')
+    if (view === 'player_profile' && !selectedPlayerId) setView('players')
+    if (view === 'live_viewer' && !liveToken) setView('home')
+    if (view === 'public_tournament' && !tournamentToken) setView('home')
+  }, [
+    view,
+    activeMatchId,
+    activeTournamentId,
+    selectedTeam,
+    selectedPlayerId,
+    liveToken,
+    tournamentToken,
+  ])
 
   // Load match hook for active match
   const matchState = useMatch(activeMatchId ?? '')
@@ -313,8 +333,10 @@ function AppContent() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </ErrorBoundary>
   )
 }

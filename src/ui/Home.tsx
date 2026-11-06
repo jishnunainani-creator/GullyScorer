@@ -38,17 +38,26 @@ export const Home: React.FC<HomeProps> = ({
     async function loadData() {
       try {
         const matchRecords = await repository.listMatches()
-        setMatches(matchRecords)
+        const validMatches = (matchRecords ?? []).filter(Boolean)
+        setMatches(validMatches)
 
         const allTeamIds = Array.from(
-          new Set(matchRecords.flatMap((m: MatchRecord) => [m.teamAId, m.teamBId])),
+          new Set(
+            validMatches
+              .flatMap((m: MatchRecord) => [m?.teamAId, m?.teamBId])
+              .filter((id): id is string => typeof id === 'string' && id.length > 0),
+          ),
         )
-        const teamRecords = await repository.getTeams(allTeamIds)
+        const teamRecords = allTeamIds.length > 0 ? await repository.getTeams(allTeamIds) : []
         const tMap: Record<string, TeamRecord> = {}
         for (const t of teamRecords) {
-          tMap[t.id] = t
+          if (t && t.id) {
+            tMap[t.id] = t
+          }
         }
         setTeams(tMap)
+      } catch (err) {
+        console.error('Failed to load home screen data:', err)
       } finally {
         setLoading(false)
       }
@@ -188,10 +197,12 @@ export const Home: React.FC<HomeProps> = ({
                 Live Match In Progress
               </span>
               <span className="text-[10px] text-slate-400 font-mono">
-                {new Date(activeMatch.updatedAt).toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
+                {activeMatch.updatedAt
+                  ? new Date(activeMatch.updatedAt).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })
+                  : ''}
               </span>
             </div>
 
@@ -247,7 +258,7 @@ export const Home: React.FC<HomeProps> = ({
                     className="p-3.5 bg-[#121A1D] hover:bg-[#182328] border border-[#233238] hover:border-slate-600 rounded-xl cursor-pointer transition-all flex flex-col gap-1.5 active:scale-99 shadow-sm"
                   >
                     <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
-                      <span>{new Date(m.date).toLocaleDateString()}</span>
+                      <span>{m.date ? new Date(m.date).toLocaleDateString() : ''}</span>
                       <span
                         className={`font-semibold uppercase text-[10px] px-1.5 py-0.5 rounded ${
                           m.status === 'in_progress'
@@ -264,7 +275,7 @@ export const Home: React.FC<HomeProps> = ({
                         {teamA} vs {teamB}
                       </h4>
                       <span className="text-xs font-mono font-semibold text-slate-400">
-                        {m.config.oversPerInnings} ov
+                        {m.config?.oversPerInnings ?? 6} ov
                       </span>
                     </div>
                   </div>
