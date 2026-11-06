@@ -140,6 +140,12 @@ describe('useMatch Integration Hook Test', () => {
     expect(result.current.striker?.name).toBe('Gill')
     expect(result.current.nonStriker?.name).toBe('Rohit')
 
+    // Check groupedOvers after Over 1 completes:
+    expect(result.current.groupedOvers).toHaveLength(1)
+    expect(result.current.groupedOvers[0]!.overNumber).toBe(1)
+    expect(result.current.groupedOvers[0]!.isCompleted).toBe(true)
+    expect(result.current.groupedOvers[0]!.balls).toHaveLength(7) // 6 legal + 1 wide
+
     // Select new bowler for Over 2: Cummins (p6)
     act(() => {
       result.current.setNewBowler('p6')
@@ -156,6 +162,14 @@ describe('useMatch Integration Hook Test', () => {
     })
     expect(result.current.currentInnings?.wickets).toBe(1)
     expect(result.current.needsNewBatter).toBe(true)
+
+    // Check groupedOvers during Over 2: Over 1 is completed, Over 2 has started counting!
+    expect(result.current.groupedOvers).toHaveLength(2)
+    expect(result.current.groupedOvers[0]!.isCompleted).toBe(true)
+    expect(result.current.groupedOvers[1]!.overNumber).toBe(2)
+    expect(result.current.groupedOvers[1]!.isCompleted).toBe(false)
+    expect(result.current.groupedOvers[1]!.balls).toHaveLength(1)
+    expect(result.current.thisOverBalls).toHaveLength(1) // Only balls of Over 2!
 
     // Bring in new batter: Kohli (p3)
     act(() => {

@@ -27,6 +27,65 @@ export interface AddBallParams {
   bowlerId?: string
 }
 
+export interface OverGroup {
+  overNumber: number
+  balls: BallEvent[]
+  isCompleted: boolean
+  runs: number
+  wickets: number
+}
+
+export function groupEventsIntoOvers(
+  events: BallEvent[],
+  config: MatchConfig,
+): OverGroup[] {
+  const overs: OverGroup[] = []
+  let currentBalls: BallEvent[] = []
+  let legalBallsInCurrentOver = 0
+  let overNumber = 1
+
+  for (const b of events) {
+    currentBalls.push(b)
+    if (isLegalDelivery(b, config)) {
+      legalBallsInCurrentOver++
+      if (legalBallsInCurrentOver === 6) {
+        overs.push({
+          overNumber,
+          balls: currentBalls,
+          isCompleted: true,
+          runs: currentBalls.reduce(
+            (acc, ev) => acc + ev.runsOffBat + (ev.extra?.runs ?? 0),
+            0,
+          ),
+          wickets: currentBalls.filter(
+            (ev) => ev.wicket && ev.wicket.type !== 'retired',
+          ).length,
+        })
+        currentBalls = []
+        legalBallsInCurrentOver = 0
+        overNumber++
+      }
+    }
+  }
+
+  if (currentBalls.length > 0) {
+    overs.push({
+      overNumber,
+      balls: currentBalls,
+      isCompleted: false,
+      runs: currentBalls.reduce(
+        (acc, ev) => acc + ev.runsOffBat + (ev.extra?.runs ?? 0),
+        0,
+      ),
+      wickets: currentBalls.filter(
+        (ev) => ev.wicket && ev.wicket.type !== 'retired',
+      ).length,
+    })
+  }
+
+  return overs
+}
+
 export interface UseMatchReturn {
   loading: boolean
   error: string | null
@@ -45,6 +104,7 @@ export interface UseMatchReturn {
   nonStriker: Player | null
   currentBowler: Player | null
   thisOverBalls: BallEvent[]
+  groupedOvers: OverGroup[]
   matchResult: string | null
   isMatchComplete: boolean
   needsNewBowler: boolean
@@ -254,31 +314,18 @@ export function useMatch(
     currentInnings.currentStrikerId === null &&
     selectedBatterId === null
 
-  // Balls in the current over
-  const thisOverBalls = useMemo(() => {
+  // Grouped overs for timeline strip with over separators (walls)
+  const groupedOvers = useMemo(() => {
     if (!currentInnings || !config) return []
-    const innEvents = currentInnings.events
-    if (innEvents.length === 0) return []
-
-    // If over is completed, the balls shown are the 6 (or more with extras) balls of that completed over
-    // If over is in progress, find where current over started
-    const ballsInOver: BallEvent[] = []
-    let legalBallsCount = 0
-
-    // Reverse iterate to find current over's balls
-    for (let i = innEvents.length - 1; i >= 0; i--) {
-      const b = innEvents[i]
-      if (!b) continue
-      ballsInOver.unshift(b)
-      if (isLegalDelivery(b, config)) {
-        legalBallsCount++
-        if (legalBallsCount === 6) {
-          break
-        }
-      }
-    }
-    return ballsInOver
+    return groupEventsIntoOvers(currentInnings.events, config)
   }, [currentInnings, config])
+
+  // Balls in the active over (or last completed over if awaiting new over)
+  const thisOverBalls = useMemo(() => {
+    if (groupedOvers.length === 0) return []
+    const lastOver = groupedOvers[groupedOvers.length - 1]
+    return lastOver?.balls ?? []
+  }, [groupedOvers])
 
   // Match result calculation
   const matchResult = useMemo(() => {
@@ -532,6 +579,7 @@ export function useMatch(
     nonStriker,
     currentBowler,
     thisOverBalls,
+    groupedOvers,
     matchResult,
     isMatchComplete,
     needsNewBowler,

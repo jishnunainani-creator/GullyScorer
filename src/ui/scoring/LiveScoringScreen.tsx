@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import {
   RotateCcw,
   Mic,
@@ -52,7 +52,7 @@ export const LiveScoringScreen: React.FC<LiveScoringScreenProps> = ({
     striker,
     nonStriker,
     currentBowler,
-    thisOverBalls,
+    groupedOvers,
     needsNewBowler,
     needsNewBatter,
     previousBowlerId,
@@ -69,6 +69,15 @@ export const LiveScoringScreen: React.FC<LiveScoringScreenProps> = ({
     events,
     updateMatchLive,
   } = matchState
+
+  // Over timeline strip ref for smooth auto-scrolling
+  const overStripRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (overStripRef.current) {
+      overStripRef.current.scrollLeft = overStripRef.current.scrollWidth
+    }
+  }, [events.length])
 
   // Bottom Sheet States
   const [activeExtraType, setActiveExtraType] = useState<ExtraType | null>(null)
@@ -396,17 +405,56 @@ export const LiveScoringScreen: React.FC<LiveScoringScreenProps> = ({
           </div>
         </div>
 
-        {/* This-Over Tracker Strip */}
-        <div className="flex items-center gap-1.5 py-1.5 px-2 bg-[#0E1517] border border-[#1A262B] rounded-xl overflow-x-auto">
+        {/* Over Timeline Strip with Over Separator (Wall) */}
+        <div
+          ref={overStripRef}
+          className="flex items-center gap-1.5 py-1.5 px-2 bg-[#0E1517] border border-[#1A262B] rounded-xl overflow-x-auto scrollbar-none"
+        >
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 whitespace-nowrap pl-1">
             This Over:
           </span>
-          {thisOverBalls.length === 0 ? (
+          {groupedOvers.length === 0 ? (
             <span className="text-xs text-slate-600 font-mono italic pl-2">
               Waiting for 1st ball...
             </span>
           ) : (
-            thisOverBalls.map((b) => <BallChip key={b.id} ball={b} />)
+            groupedOvers.map((ov, ovIdx) => (
+              <React.Fragment key={ov.overNumber}>
+                {/* Small Wall divider between overs */}
+                {ovIdx > 0 && (
+                  <div
+                    className="flex items-center px-1 flex-shrink-0"
+                    title={`End of Over ${ov.overNumber - 1}`}
+                  >
+                    <div className="w-[3px] h-7 bg-slate-500/80 rounded-full shadow-sm" />
+                  </div>
+                )}
+
+                {/* Over balls */}
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  {ov.balls.map((b) => (
+                    <BallChip key={b.id} ball={b} />
+                  ))}
+                </div>
+
+                {/* If this over just completed and it is the latest over, show the small wall after it and next over badge */}
+                {ov.isCompleted && ovIdx === groupedOvers.length - 1 && (
+                  <>
+                    <div
+                      className="flex items-center px-1 flex-shrink-0"
+                      title={`End of Over ${ov.overNumber}`}
+                    >
+                      <div className="w-[3px] h-7 bg-emerald-500/80 rounded-full shadow-sm" />
+                    </div>
+                    {!isMatchComplete && (
+                      <span className="text-[10px] font-mono font-bold text-emerald-400/90 px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 whitespace-nowrap flex-shrink-0 animate-pulse">
+                        Ov {ov.overNumber + 1}
+                      </span>
+                    )}
+                  </>
+                )}
+              </React.Fragment>
+            ))
           )}
         </div>
       </div>
