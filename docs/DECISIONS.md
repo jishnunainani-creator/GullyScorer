@@ -137,3 +137,73 @@ Confirmed requirements for upcoming phases:
 - **Milestones & Badges:**
   - 10 milestone badges (Debut, Maiden Fifty, Century Club, Fifer, Hat-Trick, 100 Career Runs, 100 Career Wickets, Golden Duck, Super Striker, Mr. Miser) are derived purely by inspecting career milestones.
   - Unlocked milestones are toasted at match end via `MatchEndModal`.
+
+---
+
+## 17. Architecture Decisions: Custom Gully Rules, Player Profiles & Team Identity (D023–D035)
+
+### D023: Editable Player Profiles
+- **Context:** Scorers frequently misspell player names during fast match setup, or players change nicknames, batting handedness, or bowling styles over time.
+- **Decision:** Users can edit player names, batting style, bowling style, and profile avatars at any time in the library.
+- **Rationale:** Historical match scorecards snapshot player names at match creation time, so updating a player's library profile updates future matches while preserving the fidelity of past matches.
+
+### D024: Stable PlayerId Independent of Display Name
+- **Context:** If player names are used as primary or foreign keys, renaming "Ravi" to "Ravindra" would corrupt historical records, career aggregates, and outbox sync.
+- **Decision:** Every player entity is identified by an immutable RFC4122 v4 UUID (`PlayerId`). Names are strictly presentation attributes.
+- **Rationale:** Guarantees relational and event integrity across matches, tournaments, and multi-team rosters.
+
+### D025: Configurable Gully Cricket Rules Engine
+- **Context:** Gully cricket rules vary from street to street and society to society. Hardcoding exceptions inside the core scoring reducer creates brittle, untestable code.
+- **Decision:** Create a dedicated, modular Match Rules engine (`src/rules/`) with customizable rule definitions and presets (`standard`, `gully`, `tennis_ball`, `society`, `custom`). Matches store an immutable snapshot of their active rules configuration.
+- **Rationale:** Preserves the purity of the core scoring reducer while offering infinite rule customizability.
+
+### D026: One Tip One Hand Support
+- **Context:** A universal street cricket rule where a batter can be caught out with one hand after one bounce.
+- **Decision:** Model "One Tip One Hand" as a configurable dismissal with customizable max bounces (default 1), strict single-hand requirement, wall-touch constraints, and optional bowler credit.
+- **Rationale:** Accurately reflects local gameplay without distorting standard caught dismissal statistics.
+
+### D027: Mankad / Run-Out Support
+- **Context:** Running out the non-striker before delivery release is an official law (MCC Law 38) but often disputed or disabled in informal street games.
+- **Decision:** Model Mankad under the standard `runout` dismissal type with a distinct subtype: `{ type: 'runout', subtype: 'mankad', playerOutId, bowlerId }`. Configurable per match.
+- **Rationale:** Avoids inventing non-standard top-level dismissal categories while accurately recording the dismissal and not charging a wicket to the bowler.
+
+### D028: Hit-Wicket Support
+- **Context:** Batters accidentally dislodging their own stumps during a shot or run.
+- **Decision:** Support `hitwicket` dismissals with validation that hit-wicket is invalid and ignored on a Free Hit delivery. Credited to the bowler.
+- **Rationale:** Conforms strictly to official laws of cricket and grassroots scoring reality.
+
+### D029: Configurable Wall Rules
+- **Context:** Many street grounds have compound walls, parked vehicles, or garages functioning as boundaries.
+- **Decision:** Introduce a dedicated `WallRulesConfig` supporting direct hits (4 runs, 6 runs, dead ball, custom runs, or out) and ground taps (1 run, dead ball, boundary four, or live ball), independent of open-ground boundaries.
+- **Rationale:** Solves the primary complaint against standard cricket scorers which cannot score street wall outcomes.
+
+### D030: Dead Ball and Reball are Distinct Concepts
+- **Context:** Scorers frequently confuse a dead ball (play halted due to external obstruction) with an undo (scoring error) or a reball (mandatory replay of a delivery attempt).
+- **Decision:** Architecturally separate `DeliveryAttempt`, `BallEvent`, `DeadBallEvent`, and `ReballOperation`. A reball voids scoring outcomes of the superseded attempt while preserving it in the audit log, without advancing the legal delivery counter.
+- **Rationale:** Prevents duplicate runs, protects legal ball counts, and guarantees complete audit traceability.
+
+### D031: Pace Call Requires Clarification
+- **Context:** "Pace Call" is a common local rule in Indian street cricket, but its exact trigger and penalty differ significantly across regions.
+- **Decision:** Establish an architectural placeholder `PaceCallRule` in the domain schema and explicitly mark it with status `PENDING_SPECIFICATION`. Do not implement speculative behaviors until clarified by the project lead.
+- **Rationale:** Prevents building assumptions into the engine that would later require breaking schema migrations.
+
+### D032: Animal Mascot Catalogue
+- **Context:** Scorers and organizers want visual identity for teams without finding, resizing, and uploading custom image files on mobile devices.
+- **Decision:** Provide a built-in vector catalogue of 14 high-contrast animal mascots (Lion, Tiger, Eagle, Panther, Wolf, Falcon, Cobra, Dragon, Bull, Rhino, Shark, Cheetah, Gorilla, Phoenix).
+- **Rationale:** Zero network dependency, instant offline loading, and crisp SVG rendering on dark-mode scorecards.
+
+### D033: IPL Identity Catalogue
+- **Context:** Gully and society tournaments almost universally name teams after IPL franchises (e.g., "Gully CSK", "Society RCB").
+- **Decision:** Provide an extensible data-driven catalogue of all 10 IPL franchises with team names, primary/secondary colors, and generic vector insignias.
+- **Rationale:** Maximizes player delight and familiarity while respecting intellectual property by avoiding unlicensed copyrighted logos.
+
+### D034: International Team Identity Catalogue
+- **Context:** Weekend tournaments frequently mimic World Cup or international formats.
+- **Decision:** Provide a data-driven international country catalogue with national team names, standard colors, and flag badges, extensible beyond top-tier teams.
+- **Rationale:** Enables instant setup of "India vs Pakistan" or "Ashes" style local tournaments.
+
+### D035: Custom Team Identity
+- **Context:** Established local clubs and corporate teams possess their own proprietary logos and color palettes.
+- **Decision:** Support custom logo uploads, custom hex color palettes, custom team names, and dynamic 2-3 letter initials badge generation when no avatar is selected.
+- **Rationale:** Offers unconstrained flexibility for professional clubs while maintaining aesthetic consistency.
+
