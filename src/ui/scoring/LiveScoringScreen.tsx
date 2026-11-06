@@ -124,14 +124,6 @@ export const LiveScoringScreen: React.FC<LiveScoringScreenProps> = ({
     onCommand: handleVoiceCommand,
   })
 
-  if (!match || !config || !currentInnings) {
-    return (
-      <div className="h-screen w-full flex items-center justify-center bg-[#080C0E] text-slate-400 font-mono text-sm">
-        Loading Match State...
-      </div>
-    )
-  }
-
   // Check for newly unlocked milestones when match completes
   const unlockedMilestones = React.useMemo<PlayerMilestoneUnlock[]>(() => {
     if (!isMatchComplete || !match) return []
@@ -170,6 +162,14 @@ export const LiveScoringScreen: React.FC<LiveScoringScreenProps> = ({
 
     return unlocks
   }, [isMatchComplete, match, events, config, players])
+
+  if (!match || !config || !currentInnings) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-[#080C0E] text-slate-400 font-mono text-sm">
+        Loading Match State...
+      </div>
+    )
+  }
 
   // Current Run Rate (CRR)
   const crr =
