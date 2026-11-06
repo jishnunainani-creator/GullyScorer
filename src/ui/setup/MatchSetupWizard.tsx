@@ -1,9 +1,12 @@
 import React, { useState } from 'react'
-import { ArrowLeft, Check, Plus, Trash2, Users } from 'lucide-react'
+import { ArrowLeft, Check, Plus, Trash2, Users, ChevronDown, ChevronUp, Sparkles } from 'lucide-react'
 import type { MatchConfig } from '../../engine/types'
 import type { MatchRecord, TeamRecord, PlayerRecord } from '../../db/schema'
 import { repository } from '../../db/repository'
 import { PickSavedTeamModal } from './PickSavedTeamModal'
+import { getPresetRules, listPresets } from '../../rules/presets'
+import type { RulePresetType, MatchRules } from '../../rules/types'
+import { useTranslation } from '../../i18n'
 
 export interface TournamentSetupContext {
   tournamentId: string
@@ -47,12 +50,34 @@ export const MatchSetupWizard: React.FC<MatchSetupWizardProps> = ({
   const [saveToLibraryA, setSaveToLibraryA] = useState<boolean>(false)
   const [saveToLibraryB, setSaveToLibraryB] = useState<boolean>(false)
 
-  // Step 2: Match Config
-  const [overs, setOvers] = useState<number>(tournamentContext?.overs ?? 10)
+  // Step 2: Match Config & Rules
+  const { t } = useTranslation()
+  const [rulesPreset, setRulesPreset] = useState<RulePresetType>('gully_cricket')
+  const [matchRules, setMatchRules] = useState<MatchRules>(() =>
+    getPresetRules('gully_cricket'),
+  )
+  const [showCustomRules, setShowCustomRules] = useState<boolean>(false)
+  const [overs, setOvers] = useState<number>(
+    tournamentContext?.overs ?? matchRules.oversPerInnings,
+  )
   const [customOvers, setCustomOvers] = useState<string>('')
-  const [wideReBowl, setWideReBowl] = useState<boolean>(true)
-  const [noBallFreeHit, setNoBallFreeHit] = useState<boolean>(true)
-  const [lastManStands, setLastManStands] = useState<boolean>(false)
+  const [wideReBowl, setWideReBowl] = useState<boolean>(matchRules.wideReBowl)
+  const [noBallFreeHit, setNoBallFreeHit] = useState<boolean>(
+    matchRules.noBallFreeHit,
+  )
+  const [lastManStands, setLastManStands] = useState<boolean>(
+    matchRules.lastManStands,
+  )
+
+  const handleSelectPreset = (presetKey: RulePresetType) => {
+    setRulesPreset(presetKey)
+    const newRules = getPresetRules(presetKey)
+    setMatchRules(newRules)
+    setOvers(tournamentContext?.overs ?? newRules.oversPerInnings)
+    setWideReBowl(newRules.wideReBowl)
+    setNoBallFreeHit(newRules.noBallFreeHit)
+    setLastManStands(newRules.lastManStands)
+  }
 
   // Step 3: Toss & Openers
   const [tossWinner, setTossWinner] = useState<'A' | 'B'>('A')
@@ -125,12 +150,24 @@ export const MatchSetupWizard: React.FC<MatchSetupWizardProps> = ({
       playerIds: playersListB.map((p) => p.id),
     }
 
+    const activeRules: MatchRules = {
+      ...matchRules,
+      oversPerInnings: finalOvers,
+      playersPerSide: playersCount,
+      wideReBowl,
+      noBallFreeHit,
+      lastManStands,
+      presetName: rulesPreset,
+    }
+
     const config: MatchConfig = {
       oversPerInnings: finalOvers,
       playersPerSide: playersCount,
       wideReBowl,
       noBallFreeHit,
       lastManStands,
+      ballsPerOver: activeRules.ballsPerOver,
+      matchRules: activeRules,
     }
 
     const innings1BattingTeamId = team1IsA ? teamAId : teamBId
@@ -162,6 +199,24 @@ export const MatchSetupWizard: React.FC<MatchSetupWizardProps> = ({
       status: 'in_progress',
       tournamentId: tournamentContext?.tournamentId,
       fixtureId: tournamentContext?.fixtureId,
+      rulesConfig: activeRules,
+      rulesPreset,
+      teamSnapshots: {
+        teamA: {
+          id: teamAId,
+          name: teamAName,
+          playerSnapshots: Object.fromEntries(
+            playersListA.map((p) => [p.id, { id: p.id, name: p.name }]),
+          ),
+        },
+        teamB: {
+          id: teamBId,
+          name: teamBName,
+          playerSnapshots: Object.fromEntries(
+            playersListB.map((p) => [p.id, { id: p.id, name: p.name }]),
+          ),
+        },
+      },
       createdAt: Date.now(),
       updatedAt: Date.now(),
     }
@@ -171,6 +226,7 @@ export const MatchSetupWizard: React.FC<MatchSetupWizardProps> = ({
       [teamARecord, teamBRecord],
       [...playersListA, ...playersListB],
     )
+    await repository.saveMatchRules(activeRules, matchId)
 
     if (tournamentContext) {
       await repository.attachMatchToFixture(
@@ -377,16 +433,54 @@ export const MatchSetupWizard: React.FC<MatchSetupWizardProps> = ({
           </>
         )}
 
-        {/* STEP 2: MATCH CONFIG */}
+        {/* STEP 2: MATCH CONFIG & GULLY RULES */}
         {step === 2 && (
           <div className="flex flex-col gap-4">
+            {/* Rule Presets Selector */}
+            <div className="bg-[#121A1D] border border-[#233238] rounded-2xl p-4 flex flex-col gap-2.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                  <Sparkles size={14} className="text-emerald-400" />
+                  <span>{t('rulePreset')}</span>
+                </label>
+                <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">
+                  {matchRules.presetDisplayName}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                {listPresets().map((preset) => (
+                  <button
+                    key={preset.type}
+                    type="button"
+                    onClick={() => handleSelectPreset(preset.type)}
+                    className={`p-2.5 rounded-xl border text-left transition-all ${
+                      rulesPreset === preset.type
+                        ? 'bg-emerald-500/20 border-emerald-500 text-white shadow-sm'
+                        : 'bg-[#182328] border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="text-xs font-bold text-white flex items-center justify-between">
+                      <span>{preset.name}</span>
+                      {rulesPreset === preset.type && (
+                        <Check size={14} className="text-emerald-400" />
+                      )}
+                    </div>
+                    <div className="text-[10px] text-slate-400 mt-1 line-clamp-1">
+                      {preset.description}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Overs Selector */}
             <div className="bg-[#121A1D] border border-[#233238] rounded-2xl p-4 flex flex-col gap-2.5">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
-                Overs Per Innings:
+                {t('oversPerInnings')}
               </label>
               <div className="grid grid-cols-4 gap-2">
-                {[5, 6, 10, 20].map((ov) => (
+                {[4, 5, 8, 10].map((ov) => (
                   <button
                     key={ov}
                     type="button"
@@ -412,80 +506,247 @@ export const MatchSetupWizard: React.FC<MatchSetupWizardProps> = ({
                   max="100"
                   value={customOvers}
                   onChange={(e) => setCustomOvers(e.target.value)}
-                  placeholder="e.g. 8"
+                  placeholder="e.g. 6"
                   className="w-24 h-10 bg-[#0A0F11] border border-slate-700 rounded-xl px-3 text-center text-sm font-mono font-bold text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
             </div>
 
-            {/* Toggles */}
-            <div className="bg-[#121A1D] border border-[#233238] rounded-2xl p-4 flex flex-col gap-4">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">
-                Gully & Match Rules
-              </h3>
-
-              {/* Wide re-bowl */}
-              <div className="flex items-center justify-between">
+            {/* Configured Gully Rules Summary & Customization Drawer */}
+            <div className="bg-[#121A1D] border border-[#233238] rounded-2xl p-4 flex flex-col gap-3">
+              <div
+                className="flex items-center justify-between cursor-pointer"
+                onClick={() => setShowCustomRules(!showCustomRules)}
+              >
                 <div>
-                  <p className="text-sm font-bold text-white">Re-bowl Wides</p>
-                  <p className="text-xs text-slate-400">Wide ball must be re-bowled</p>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-200">
+                    Customise Rules & Hazards
+                  </h3>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    {matchRules.oneTipOneHand.enabled ? '1-Tip 1-Hand ON' : '1-Tip OFF'} •{' '}
+                    {matchRules.wallRules.enabled ? 'Wall Rules ON' : 'Wall Rules OFF'} •{' '}
+                    {matchRules.ballsPerOver} balls/over
+                  </p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setWideReBowl(!wideReBowl)}
-                  className={`w-12 h-7 rounded-full p-1 transition-colors ${
-                    wideReBowl ? 'bg-emerald-500' : 'bg-slate-700'
-                  }`}
+                  className="p-1.5 rounded-lg bg-[#182328] border border-slate-700 text-slate-300"
                 >
-                  <div
-                    className={`w-5 h-5 rounded-full bg-black transition-transform ${
-                      wideReBowl ? 'translate-x-5' : 'translate-x-0'
-                    }`}
-                  />
+                  {showCustomRules ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                 </button>
               </div>
 
-              {/* Free Hit on No-ball */}
-              <div className="flex items-center justify-between border-t border-[#1C282D] pt-3">
-                <div>
-                  <p className="text-sm font-bold text-white">Free Hit on No-Ball</p>
-                  <p className="text-xs text-slate-400">Next legal ball is a Free Hit</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setNoBallFreeHit(!noBallFreeHit)}
-                  className={`w-12 h-7 rounded-full p-1 transition-colors ${
-                    noBallFreeHit ? 'bg-emerald-500' : 'bg-slate-700'
-                  }`}
-                >
-                  <div
-                    className={`w-5 h-5 rounded-full bg-black transition-transform ${
-                      noBallFreeHit ? 'translate-x-5' : 'translate-x-0'
-                    }`}
-                  />
-                </button>
-              </div>
+              {showCustomRules && (
+                <div className="mt-2 space-y-3 pt-3 border-t border-[#1C282D]">
+                  {/* One Tip One Hand */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-bold text-white">{t('oneTipOneHand')}</p>
+                      <p className="text-[10px] text-slate-400">
+                        1 bounce + 1 hand catch is OUT
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setMatchRules((prev) => ({
+                          ...prev,
+                          oneTipOneHand: {
+                            ...prev.oneTipOneHand,
+                            enabled: !prev.oneTipOneHand.enabled,
+                          },
+                        }))
+                      }
+                      className={`w-11 h-6 rounded-full p-0.5 transition-colors ${
+                        matchRules.oneTipOneHand.enabled ? 'bg-emerald-500' : 'bg-slate-700'
+                      }`}
+                    >
+                      <div
+                        className={`w-5 h-5 rounded-full bg-black transition-transform ${
+                          matchRules.oneTipOneHand.enabled ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
 
-              {/* Last Man Stands */}
-              <div className="flex items-center justify-between border-t border-[#1C282D] pt-3">
-                <div>
-                  <p className="text-sm font-bold text-white">Last Man Stands (LMS)</p>
-                  <p className="text-xs text-slate-400">Final batter bats alone until out</p>
+                  {/* Mankad */}
+                  <div className="flex items-center justify-between border-t border-[#1C282D] pt-2.5">
+                    <div>
+                      <p className="text-xs font-bold text-white">{t('mankad')}</p>
+                      <p className="text-[10px] text-slate-400">
+                        Run out non-striker before release
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setMatchRules((prev) => ({
+                          ...prev,
+                          mankad: {
+                            ...prev.mankad,
+                            enabled: !prev.mankad.enabled,
+                          },
+                        }))
+                      }
+                      className={`w-11 h-6 rounded-full p-0.5 transition-colors ${
+                        matchRules.mankad.enabled ? 'bg-emerald-500' : 'bg-slate-700'
+                      }`}
+                    >
+                      <div
+                        className={`w-5 h-5 rounded-full bg-black transition-transform ${
+                          matchRules.mankad.enabled ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Wall Rules & Broken Glass */}
+                  <div className="flex items-center justify-between border-t border-[#1C282D] pt-2.5">
+                    <div>
+                      <p className="text-xs font-bold text-white">{t('wallRules')}</p>
+                      <p className="text-[10px] text-slate-400">
+                        Direct hit 4s / tap 1s / car window out
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setMatchRules((prev) => ({
+                          ...prev,
+                          wallRules: {
+                            ...prev.wallRules,
+                            enabled: !prev.wallRules.enabled,
+                          },
+                        }))
+                      }
+                      className={`w-11 h-6 rounded-full p-0.5 transition-colors ${
+                        matchRules.wallRules.enabled ? 'bg-emerald-500' : 'bg-slate-700'
+                      }`}
+                    >
+                      <div
+                        className={`w-5 h-5 rounded-full bg-black transition-transform ${
+                          matchRules.wallRules.enabled ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Balls per over */}
+                  <div className="flex items-center justify-between border-t border-[#1C282D] pt-2.5">
+                    <div>
+                      <p className="text-xs font-bold text-white">{t('ballsPerOver')}</p>
+                      <p className="text-[10px] text-slate-400">Balls in each legal over</p>
+                    </div>
+                    <select
+                      value={matchRules.ballsPerOver}
+                      onChange={(e) =>
+                        setMatchRules((prev) => ({
+                          ...prev,
+                          ballsPerOver: parseInt(e.target.value, 10),
+                        }))
+                      }
+                      className="px-2 py-1 bg-[#0A0F11] border border-slate-700 rounded-lg text-xs font-mono font-bold text-white focus:outline-none focus:border-emerald-500"
+                    >
+                      <option value={4}>4 balls</option>
+                      <option value={5}>5 balls</option>
+                      <option value={6}>6 balls</option>
+                      <option value={8}>8 balls</option>
+                      <option value={10}>10 balls</option>
+                    </select>
+                  </div>
+
+                  {/* LBW Allowed */}
+                  <div className="flex items-center justify-between border-t border-[#1C282D] pt-2.5">
+                    <div>
+                      <p className="text-xs font-bold text-white">{t('lbwAllowed')}</p>
+                      <p className="text-[10px] text-slate-400">
+                        Enable LBW dismissal (disabled in tennis-ball/gully)
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setMatchRules((prev) => ({
+                          ...prev,
+                          lbwEnabled: !prev.lbwEnabled,
+                        }))
+                      }
+                      className={`w-11 h-6 rounded-full p-0.5 transition-colors ${
+                        matchRules.lbwEnabled ? 'bg-emerald-500' : 'bg-slate-700'
+                      }`}
+                    >
+                      <div
+                        className={`w-5 h-5 rounded-full bg-black transition-transform ${
+                          matchRules.lbwEnabled ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Re-bowl Wides */}
+                  <div className="flex items-center justify-between border-t border-[#1C282D] pt-2.5">
+                    <div>
+                      <p className="text-xs font-bold text-white">Re-bowl Wides</p>
+                      <p className="text-[10px] text-slate-400">Wide ball must be re-bowled</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setWideReBowl(!wideReBowl)}
+                      className={`w-11 h-6 rounded-full p-0.5 transition-colors ${
+                        wideReBowl ? 'bg-emerald-500' : 'bg-slate-700'
+                      }`}
+                    >
+                      <div
+                        className={`w-5 h-5 rounded-full bg-black transition-transform ${
+                          wideReBowl ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Free Hit */}
+                  <div className="flex items-center justify-between border-t border-[#1C282D] pt-2.5">
+                    <div>
+                      <p className="text-xs font-bold text-white">Free Hit on No-Ball</p>
+                      <p className="text-[10px] text-slate-400">Next legal ball is Free Hit</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setNoBallFreeHit(!noBallFreeHit)}
+                      className={`w-11 h-6 rounded-full p-0.5 transition-colors ${
+                        noBallFreeHit ? 'bg-emerald-500' : 'bg-slate-700'
+                      }`}
+                    >
+                      <div
+                        className={`w-5 h-5 rounded-full bg-black transition-transform ${
+                          noBallFreeHit ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Last Man Stands */}
+                  <div className="flex items-center justify-between border-t border-[#1C282D] pt-2.5">
+                    <div>
+                      <p className="text-xs font-bold text-white">{t('lastManStands')}</p>
+                      <p className="text-[10px] text-slate-400">Solo batter until all out</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setLastManStands(!lastManStands)}
+                      className={`w-11 h-6 rounded-full p-0.5 transition-colors ${
+                        lastManStands ? 'bg-emerald-500' : 'bg-slate-700'
+                      }`}
+                    >
+                      <div
+                        className={`w-5 h-5 rounded-full bg-black transition-transform ${
+                          lastManStands ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setLastManStands(!lastManStands)}
-                  className={`w-12 h-7 rounded-full p-1 transition-colors ${
-                    lastManStands ? 'bg-emerald-500' : 'bg-slate-700'
-                  }`}
-                >
-                  <div
-                    className={`w-5 h-5 rounded-full bg-black transition-transform ${
-                      lastManStands ? 'translate-x-5' : 'translate-x-0'
-                    }`}
-                  />
-                </button>
-              </div>
+              )}
             </div>
           </div>
         )}

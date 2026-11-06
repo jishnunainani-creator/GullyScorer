@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { ArrowLeft, Plus, Users, ChevronRight, Trash2 } from 'lucide-react'
 import { repository } from '../../db/repository'
 import type { TeamRecord } from '../../db/schema'
+import { TeamAvatarRenderer } from '../../teams/TeamAvatarRenderer'
 
 interface TeamsListScreenProps {
   onBack: () => void
@@ -95,13 +96,20 @@ export const TeamsListScreen: React.FC<TeamsListScreenProps> = ({
               <div
                 key={t.id}
                 onClick={() => onSelectTeam(t)}
-                className="p-4 bg-[#121A1D] hover:bg-[#182328] border border-[#233238] hover:border-emerald-500/50 rounded-xl cursor-pointer flex items-center justify-between transition-all active:scale-99 shadow-sm"
+                className="p-3.5 bg-[#121A1D] hover:bg-[#182328] border border-[#233238] hover:border-emerald-500/50 rounded-xl cursor-pointer flex items-center justify-between transition-all active:scale-99 shadow-sm"
               >
-                <div>
-                  <h3 className="font-bold text-white text-sm">{t.name}</h3>
-                  <span className="text-xs text-slate-400 font-mono">
-                    {t.playerIds.length} players in roster
-                  </span>
+                <div className="flex items-center gap-3">
+                  <TeamAvatarRenderer
+                    avatar={t.avatar}
+                    teamName={t.name}
+                    size="md"
+                  />
+                  <div>
+                    <h3 className="font-bold text-white text-sm">{t.name}</h3>
+                    <span className="text-xs text-slate-400 font-mono">
+                      {t.playerIds.length} players in roster
+                    </span>
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-2">

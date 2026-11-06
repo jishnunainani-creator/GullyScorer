@@ -15,6 +15,7 @@ import {
   Compass,
   GitMerge,
   RotateCcw,
+  Languages,
 } from 'lucide-react'
 import { useAuth } from '../../auth/useAuth'
 import { syncWorker, type SyncStats } from '../../sync/syncWorker'
@@ -22,6 +23,7 @@ import { repository } from '../../db/repository'
 import { isSupabaseConfigured } from '../../lib/supabase'
 import { clearStatsMemoryCache, STATS_CACHE_VERSION } from '../../stats/memoCache'
 import type { PlayerRecord } from '../../db/schema'
+import { useTranslation } from '../../i18n'
 
 interface SettingsScreenProps {
   onBack: () => void
@@ -37,6 +39,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack }) => {
     signInWithOtp,
     signOut,
   } = useAuth()
+
+  const { lang, setLanguage, supportedLanguages } = useTranslation()
 
   const [email, setEmail] = useState('')
   const [authMsg, setAuthMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -260,6 +264,37 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack }) => {
 
       {/* Main Settings Body */}
       <div className="flex-1 overflow-y-auto py-4 flex flex-col gap-4">
+        {/* Language & Regional Setting */}
+        <div className="bg-[#121A1D] border border-[#233238] rounded-2xl p-4 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Languages size={18} className="text-emerald-400" />
+              <h3 className="text-sm font-bold text-white">App Language</h3>
+            </div>
+            <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">
+              {supportedLanguages.find((l) => l.code === lang)?.nativeName}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            {supportedLanguages.map((l) => (
+              <button
+                key={l.code}
+                type="button"
+                onClick={() => setLanguage(l.code)}
+                className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
+                  lang === l.code
+                    ? 'bg-emerald-500 text-black border-emerald-400 shadow font-extrabold'
+                    : 'bg-[#182328] border-slate-800 text-slate-300 hover:text-white hover:border-slate-700'
+                }`}
+              >
+                <div>{l.label}</div>
+                <div className="text-[10px] opacity-75 font-normal">{l.nativeName}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Supabase Status / Cloud Config */}
         <div className="bg-[#121A1D] border border-[#233238] rounded-2xl p-4 flex flex-col gap-3">
           <div className="flex items-center justify-between">

@@ -27,6 +27,7 @@ import { useVoiceScoring } from '../../voice/useVoiceScoring'
 import { BADGE_DEFINITIONS } from '../../stats/milestones'
 import { deriveInningsBatting } from '../../stats/batting'
 import { deriveInningsBowling } from '../../stats/bowling'
+import { useTranslation } from '../../i18n'
 
 interface LiveScoringScreenProps {
   matchState: UseMatchReturn
@@ -69,6 +70,8 @@ export const LiveScoringScreen: React.FC<LiveScoringScreenProps> = ({
     events,
     updateMatchLive,
   } = matchState
+
+  const { lang, setLanguage } = useTranslation()
 
   // Over timeline strip ref for smooth auto-scrolling
   const overStripRef = useRef<HTMLDivElement>(null)
@@ -258,6 +261,24 @@ export const LiveScoringScreen: React.FC<LiveScoringScreenProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5">
+            {/* Language Switcher */}
+            <div className="flex items-center rounded-lg bg-[#121A1D] border border-slate-700 p-0.5 text-[9px] font-bold">
+              {(['en', 'hi', 'gu'] as const).map((l) => (
+                <button
+                  key={l}
+                  type="button"
+                  onClick={() => setLanguage(l)}
+                  className={`px-1.5 py-0.5 rounded uppercase transition-colors ${
+                    lang === l
+                      ? 'bg-emerald-500 text-black font-extrabold'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
+
             <button
               type="button"
               onClick={() => setShowGoLiveModal(true)}
@@ -461,6 +482,71 @@ export const LiveScoringScreen: React.FC<LiveScoringScreenProps> = ({
 
       {/* BOTTOM THUMB ZONE: Scoring Pad (strictly no scrolling, min tap target 56px) */}
       <div className="flex flex-col flex-shrink-0 p-3 bg-[#0A0F11] border-t border-[#1A262B] gap-2">
+        {/* Gully Rules Quick Bar (Wall & Dead Ball) */}
+        {config.matchRules?.wallRules?.enabled && (
+          <div className="grid grid-cols-4 gap-1.5 pb-1">
+            <button
+              type="button"
+              onClick={() =>
+                addBall({
+                  runsOffBat: 4,
+                  isBoundary4: true,
+                  wallContact: {
+                    wallId: 'wall-1',
+                    contactType: 'direct_hit',
+                    runsAwarded: 4,
+                    isOut: false,
+                  },
+                })
+              }
+              className="py-1.5 px-1 rounded-lg bg-[#172227] hover:bg-[#202E34] border border-emerald-500/40 text-[10px] font-bold text-emerald-300 flex items-center justify-center gap-1 shadow-sm active:scale-95"
+            >
+              🧱 Wall 4
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                addBall({
+                  runsOffBat: 1,
+                  wallContact: {
+                    wallId: 'wall-1',
+                    contactType: 'ground_tap',
+                    runsAwarded: 1,
+                    isOut: false,
+                  },
+                })
+              }
+              className="py-1.5 px-1 rounded-lg bg-[#172227] hover:bg-[#202E34] border border-slate-700 text-[10px] font-bold text-slate-300 flex items-center justify-center gap-1 shadow-sm active:scale-95"
+            >
+              🧱 Tap 1
+            </button>
+
+            {config.matchRules.wallRules.carOrWindowDirectHitOut && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (!striker) return
+                  setShowWicketSheet(true)
+                }}
+                className="py-1.5 px-1 rounded-lg bg-rose-950/40 hover:bg-rose-900/50 border border-rose-500/40 text-[10px] font-bold text-rose-300 flex items-center justify-center gap-1 shadow-sm active:scale-95"
+              >
+                🚗 Car Out
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                alert('Dead Ball called! Re-bowl delivery without scoring.')
+              }}
+              className="py-1.5 px-1 rounded-lg bg-[#182328] hover:bg-[#202E34] border border-amber-500/40 text-[10px] font-bold text-amber-300 flex items-center justify-center gap-1 shadow-sm active:scale-95"
+            >
+              🚫 Dead Ball
+            </button>
+          </div>
+        )}
+
         {/* Keypad Row 1: 0, 1, 2, 3 */}
         <div className="grid grid-cols-4 gap-2">
           {[0, 1, 2, 3].map((r) => (
@@ -600,6 +686,7 @@ export const LiveScoringScreen: React.FC<LiveScoringScreenProps> = ({
           lastManStands={config.lastManStands}
           totalWicketsSoFar={currentInnings.wickets}
           playersPerSide={config.playersPerSide}
+          matchRules={config.matchRules}
           onClose={() => setShowWicketSheet(false)}
           onConfirm={async (params: AddBallParams, nextId?: string) => {
             await addBall(params)

@@ -1,7 +1,9 @@
 import React, { useState } from 'react'
 import { X, AlertCircle } from 'lucide-react'
 import type { WicketType, Player } from '../../engine/types'
+import type { MatchRules } from '../../rules/types'
 import type { AddBallParams } from '../../state/useMatch'
+import { useTranslation } from '../../i18n'
 
 interface WicketSheetProps {
   striker: Player | null
@@ -13,6 +15,7 @@ interface WicketSheetProps {
   lastManStands: boolean
   totalWicketsSoFar: number
   playersPerSide: number
+  matchRules?: MatchRules
   onClose: () => void
   onConfirm: (params: AddBallParams, nextBatterId?: string) => Promise<void>
 }
@@ -27,10 +30,14 @@ export const WicketSheet: React.FC<WicketSheetProps> = ({
   lastManStands,
   totalWicketsSoFar,
   playersPerSide,
+  matchRules,
   onClose,
   onConfirm,
 }) => {
+  const { t } = useTranslation()
   const [wicketType, setWicketType] = useState<WicketType>('bowled')
+  const [isOneTipOneHand, setIsOneTipOneHand] = useState(false)
+  const [isMankad, setIsMankad] = useState(false)
   const [playerOutId, setPlayerOutId] = useState<string>(striker?.id ?? '')
   const [fielderId, setFielderId] = useState<string>('')
   const [runsCompleted, setRunsCompleted] = useState<number>(0)
@@ -40,6 +47,7 @@ export const WicketSheet: React.FC<WicketSheetProps> = ({
   React.useEffect(() => {
     if (isFreeHit && wicketType !== 'runout' && wicketType !== 'retired') {
       setWicketType('runout')
+      setIsOneTipOneHand(false)
     }
   }, [isFreeHit, wicketType])
 
@@ -65,6 +73,9 @@ export const WicketSheet: React.FC<WicketSheetProps> = ({
           type: wicketType,
           playerOutId,
           fielderId: fielderId || undefined,
+          wasOneHanded: isOneTipOneHand ? true : undefined,
+          bouncesBeforeCatch: isOneTipOneHand ? 1 : undefined,
+          runOutSubtype: isMankad ? 'mankad' : undefined,
         },
       },
       nextBatterId || undefined,
@@ -72,9 +83,37 @@ export const WicketSheet: React.FC<WicketSheetProps> = ({
     onClose()
   }
 
-  const allowedTypes: WicketType[] = isFreeHit
+  const handleSelectWicketType = (type: WicketType) => {
+    setWicketType(type)
+    setIsOneTipOneHand(false)
+    setIsMankad(false)
+  }
+
+  const handleSelectOneTipOneHand = () => {
+    setWicketType('caught')
+    setIsOneTipOneHand(true)
+    setIsMankad(false)
+    if (striker) setPlayerOutId(striker.id)
+  }
+
+  const handleSelectMankad = () => {
+    setWicketType('runout')
+    setIsMankad(true)
+    setIsOneTipOneHand(false)
+    if (nonStriker) setPlayerOutId(nonStriker.id)
+  }
+
+  const oneTipEnabled = matchRules?.oneTipOneHand?.enabled ?? true
+  const mankadEnabled = matchRules?.mankad?.enabled ?? true
+  const lbwAllowed = matchRules ? matchRules.lbwEnabled : true
+
+  const baseTypes: WicketType[] = isFreeHit
     ? ['runout', 'retired']
-    : ['bowled', 'caught', 'lbw', 'runout', 'stumped', 'hitwicket', 'retired']
+    : ['bowled', 'caught', 'runout', 'stumped', 'hitwicket', 'retired']
+
+  if (!isFreeHit && lbwAllowed) {
+    baseTypes.splice(2, 0, 'lbw')
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/80 backdrop-blur-sm animate-fadeIn">
@@ -107,20 +146,53 @@ export const WicketSheet: React.FC<WicketSheetProps> = ({
             Dismissal Type:
           </label>
           <div className="grid grid-cols-3 gap-2">
-            {allowedTypes.map((type) => (
+            {baseTypes.map((type) => {
+              const isActive = wicketType === type && !isOneTipOneHand && !isMankad
+              return (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => handleSelectWicketType(type)}
+                  className={`py-2.5 px-1 text-xs font-bold rounded-xl uppercase tracking-wider border transition-all ${
+                    isActive
+                      ? 'bg-rose-600 text-white border-rose-500 shadow-md font-extrabold'
+                      : 'bg-[#182328] text-slate-300 border-slate-700 hover:border-slate-500'
+                  }`}
+                >
+                  {type === 'runout' ? t('runout') : type === 'hitwicket' ? t('hitwicketDismissal') : type}
+                </button>
+              )
+            })}
+
+            {/* One Tip One Hand Special Button */}
+            {!isFreeHit && oneTipEnabled && (
               <button
-                key={type}
                 type="button"
-                onClick={() => setWicketType(type)}
-                className={`py-2.5 px-1 text-xs font-bold rounded-xl uppercase tracking-wider border transition-all ${
-                  wicketType === type
-                    ? 'bg-rose-600 text-white border-rose-500 shadow-md font-extrabold'
-                    : 'bg-[#182328] text-slate-300 border-slate-700 hover:border-slate-500'
+                onClick={handleSelectOneTipOneHand}
+                className={`py-2.5 px-1 text-[11px] font-bold rounded-xl uppercase tracking-wider border transition-all ${
+                  isOneTipOneHand
+                    ? 'bg-amber-500 text-black border-amber-400 shadow-md font-extrabold'
+                    : 'bg-[#182328] text-amber-400 border-amber-500/40 hover:bg-amber-500/10'
                 }`}
               >
-                {type === 'runout' ? 'Run Out' : type === 'hitwicket' ? 'Hit Wkt' : type}
+                1-Tip 1-Hand
               </button>
-            ))}
+            )}
+
+            {/* Mankad Special Button */}
+            {mankadEnabled && (
+              <button
+                type="button"
+                onClick={handleSelectMankad}
+                className={`py-2.5 px-1 text-[11px] font-bold rounded-xl uppercase tracking-wider border transition-all ${
+                  isMankad
+                    ? 'bg-purple-600 text-white border-purple-400 shadow-md font-extrabold'
+                    : 'bg-[#182328] text-purple-400 border-purple-500/40 hover:bg-purple-500/10'
+                }`}
+              >
+                Mankad
+              </button>
+            )}
           </div>
         </div>
 

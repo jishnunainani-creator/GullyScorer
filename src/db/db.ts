@@ -8,6 +8,7 @@ import type {
   Tournament,
   TournamentTeam,
   Fixture,
+  MatchRulesRecord,
 } from './schema'
 
 export class PitchLogDatabase extends Dexie {
@@ -19,6 +20,7 @@ export class PitchLogDatabase extends Dexie {
   tournaments!: Table<Tournament, string>
   tournamentTeams!: Table<TournamentTeam, string>
   fixtures!: Table<Fixture, string>
+  matchRules!: Table<MatchRulesRecord, string>
 
   constructor(databaseName = 'PitchLogDB') {
     super(databaseName)
@@ -46,6 +48,19 @@ export class PitchLogDatabase extends Dexie {
       tournaments: 'id, ownerId, status, isPublic, shareToken, updatedAt, deletedAt',
       tournamentTeams: 'id, tournamentId, teamId, groupId',
       fixtures: 'id, tournamentId, stage, round, groupId, matchId, status, updatedAt, deletedAt',
+    })
+
+    this.version(4).stores({
+      matches:
+        'id, date, status, updatedAt, shareToken, isLive, tournamentId, fixtureId, rulesPreset',
+      teams: 'id, name, captainPlayerId, viceCaptainPlayerId, deletedAt',
+      players: 'id, teamId, name, battingStyle, bowlingStyle, deletedAt',
+      ballEvents: 'id, matchId, sequence, [matchId+sequence], deletedAt',
+      outbox: 'id, type, entityId, matchId, createdAt, attempts',
+      tournaments: 'id, ownerId, status, isPublic, shareToken, updatedAt, deletedAt',
+      tournamentTeams: 'id, tournamentId, teamId, groupId',
+      fixtures: 'id, tournamentId, stage, round, groupId, matchId, status, updatedAt, deletedAt',
+      matchRules: 'id, matchId, presetType, updatedAt',
     })
   }
 }

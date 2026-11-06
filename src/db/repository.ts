@@ -8,8 +8,10 @@ import type {
   Tournament,
   TournamentTeam,
   Fixture,
+  MatchRulesRecord,
 } from './schema'
 import type { BallEvent, ShotZone } from '../engine/types'
+import type { MatchRules } from '../rules/types'
 import { remapPlayerIdInEvents } from '../stats/identity'
 
 export class MatchRepository {
@@ -779,6 +781,123 @@ export class MatchRepository {
         await this.updateMatch(matchId, { tournamentId, fixtureId })
       },
     )
+  }
+
+  async updatePlayerProfile(
+    playerId: string,
+    updates: Partial<PlayerRecord>,
+  ): Promise<void> {
+    await this.database.transaction(
+      'rw',
+      this.database.players,
+      this.database.outbox,
+      async () => {
+        const existing = await this.database.players.get(playerId)
+        if (!existing) throw new Error(`Player ${playerId} not found`)
+        const updated: PlayerRecord = {
+          ...existing,
+          ...updates,
+          id: playerId, // maintain stable immutable id
+          updatedAt: Date.now(),
+        }
+        await this.database.players.put(updated)
+        await this.database.outbox.put({
+          id: `outbox-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          type: 'update_player_profile',
+          entityId: playerId,
+          payload: updated as unknown as Record<string, unknown>,
+          attempts: 0,
+          createdAt: Date.now(),
+        })
+      },
+    )
+  }
+
+  async setTeamCaptain(teamId: string, captainPlayerId: string): Promise<void> {
+    await this.updateTeamIdentity(teamId, { captainPlayerId })
+  }
+
+  async setTeamViceCaptain(
+    teamId: string,
+    viceCaptainPlayerId: string,
+  ): Promise<void> {
+    await this.updateTeamIdentity(teamId, { viceCaptainPlayerId })
+  }
+
+  async updateTeamIdentity(
+    teamId: string,
+    updates: Partial<TeamRecord>,
+  ): Promise<void> {
+    await this.database.transaction(
+      'rw',
+      this.database.teams,
+      this.database.outbox,
+      async () => {
+        const existing = await this.database.teams.get(teamId)
+        if (!existing) throw new Error(`Team ${teamId} not found`)
+        const updated: TeamRecord = {
+          ...existing,
+          ...updates,
+          id: teamId,
+          updatedAt: Date.now(),
+        }
+        await this.database.teams.put(updated)
+        await this.database.outbox.put({
+          id: `outbox-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          type: 'update_team_identity',
+          entityId: teamId,
+          payload: updated as unknown as Record<string, unknown>,
+          attempts: 0,
+          createdAt: Date.now(),
+        })
+      },
+    )
+  }
+
+  async saveMatchRules(rules: MatchRules, matchId: string): Promise<void> {
+    await this.database.transaction(
+      'rw',
+      this.database.matchRules,
+      this.database.matches,
+      this.database.outbox,
+      async () => {
+        const record: MatchRulesRecord = {
+          id: rules.id || `rules-${matchId}`,
+          matchId,
+          presetType: rules.presetName,
+          rules,
+          updatedAt: Date.now(),
+        }
+        await this.database.matchRules.put(record)
+        const match = await this.database.matches.get(matchId)
+        if (match) {
+          await this.database.matches.update(matchId, {
+            rulesConfig: rules,
+            rulesPreset: rules.presetName,
+            updatedAt: Date.now(),
+          })
+        }
+        await this.database.outbox.put({
+          id: `outbox-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          type: 'upsert_match_rules',
+          entityId: record.id,
+          matchId,
+          payload: record as unknown as Record<string, unknown>,
+          attempts: 0,
+          createdAt: Date.now(),
+        })
+      },
+    )
+  }
+
+  async getMatchRules(matchId: string): Promise<MatchRules | undefined> {
+    const record = await this.database.matchRules
+      .where('matchId')
+      .equals(matchId)
+      .first()
+    if (record) return record.rules
+    const match = await this.database.matches.get(matchId)
+    return match?.rulesConfig
   }
 }
 

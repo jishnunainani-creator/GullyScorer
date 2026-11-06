@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import {
   ArrowLeft,
   Share2,
+  Edit3,
 } from 'lucide-react'
 import { repository } from '../../db/repository'
 import type { PlayerRecord } from '../../db/schema'
@@ -11,6 +12,7 @@ import { derivePlayerBadges } from '../../stats/milestones'
 import { deriveHeadToHead } from '../../stats/headToHead'
 import type { PlayerCareerStats, MilestoneBadge, HeadToHeadStats } from '../../stats/types'
 import { PlayerCardModal } from './PlayerCardModal'
+import { EditPlayerModal } from './EditPlayerModal'
 
 interface PlayerProfileScreenProps {
   playerId: string
@@ -32,6 +34,7 @@ export const PlayerProfileScreen: React.FC<PlayerProfileScreenProps> = ({
   const [activeTab, setActiveTab] = useState<TabType>('overview')
   const [loading, setLoading] = useState(true)
   const [showShareModal, setShowShareModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
   const [allEvents, setAllEvents] = useState<BallEvent[]>([])
 
   useEffect(() => {
@@ -115,6 +118,14 @@ export const PlayerProfileScreen: React.FC<PlayerProfileScreenProps> = ({
         </button>
 
         <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setShowEditModal(true)}
+            className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-all"
+          >
+            <Edit3 size={14} />
+            <span>Edit</span>
+          </button>
           <button
             type="button"
             onClick={() => setShowShareModal(true)}
@@ -516,6 +527,16 @@ export const PlayerProfileScreen: React.FC<PlayerProfileScreenProps> = ({
           career={careerStats}
           topBadge={badges[0]}
           onClose={() => setShowShareModal(false)}
+        />
+      )}
+
+      {/* Edit Player Profile Modal */}
+      {showEditModal && (
+        <EditPlayerModal
+          player={player}
+          isOpen={showEditModal}
+          onClose={() => setShowEditModal(false)}
+          onSaved={(updated) => setPlayer(updated)}
         />
       )}
     </div>

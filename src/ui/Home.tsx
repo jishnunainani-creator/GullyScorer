@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { Plus, Play, Calendar, Download, Users, Settings, Trophy, User, ChevronRight } from 'lucide-react'
 import { repository } from '../db/repository'
 import type { MatchRecord, TeamRecord } from '../db/schema'
+import { TeamAvatarRenderer } from '../teams/TeamAvatarRenderer'
 
 interface HomeProps {
   onNewMatch: () => void
@@ -271,9 +272,23 @@ export const Home: React.FC<HomeProps> = ({
                     </div>
 
                     <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-bold text-white truncate max-w-[240px]">
-                        {teamA} vs {teamB}
-                      </h4>
+                      <div className="flex items-center gap-2">
+                        <div className="flex -space-x-1.5 items-center">
+                          <TeamAvatarRenderer
+                            avatar={teams[m.teamAId]?.avatar}
+                            teamName={teamA}
+                            size="xs"
+                          />
+                          <TeamAvatarRenderer
+                            avatar={teams[m.teamBId]?.avatar}
+                            teamName={teamB}
+                            size="xs"
+                          />
+                        </div>
+                        <h4 className="text-sm font-bold text-white truncate max-w-[200px]">
+                          {teamA} vs {teamB}
+                        </h4>
+                      </div>
                       <span className="text-xs font-mono font-semibold text-slate-400">
                         {m.config?.oversPerInnings ?? 6} ov
                       </span>

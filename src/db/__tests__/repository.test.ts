@@ -203,4 +203,106 @@ describe('MatchRepository with IndexedDB', () => {
     expect(freshBalls).toHaveLength(1)
     expect(freshBalls[0]?.runsOffBat).toBe(3)
   })
+
+  it('updates player profile with styles, phone, and outbox sync record', async () => {
+    await repo.createMatch(mockMatch, mockTeams, mockPlayers)
+
+    await repo.updatePlayerProfile('p1', {
+      name: 'Rohit Sharma (Captain)',
+      battingStyle: 'RIGHT_HAND',
+      bowlingStyle: 'RIGHT_ARM_SPIN',
+      jerseyNumber: 45,
+    })
+
+    const updated = (await repo.getPlayers(['p1']))[0]
+    expect(updated?.name).toBe('Rohit Sharma (Captain)')
+    expect(updated?.battingStyle).toBe('RIGHT_HAND')
+    expect(updated?.bowlingStyle).toBe('RIGHT_ARM_SPIN')
+    expect(updated?.jerseyNumber).toBe(45)
+
+    const outbox = await repo.getPendingOutbox()
+    const playerOutbox = outbox.find(
+      (o) => o.type === 'update_player_profile' && o.entityId === 'p1',
+    )
+    expect(playerOutbox).toBeDefined()
+  })
+
+  it('updates team identity with avatar and captain assignment', async () => {
+    await repo.createMatch(mockMatch, mockTeams, mockPlayers)
+
+    await repo.setTeamCaptain('team-a', 'p1')
+    await repo.setTeamViceCaptain('team-a', 'p2')
+    await repo.updateTeamIdentity('team-a', {
+      avatar: {
+        category: 'IPL',
+        assetKey: 'mumbai',
+        primaryColor: '#004ba0',
+        secondaryColor: '#d4af37',
+      },
+    })
+
+    const team = (await repo.getTeams(['team-a']))[0]
+    expect(team?.captainPlayerId).toBe('p1')
+    expect(team?.viceCaptainPlayerId).toBe('p2')
+    expect(team?.avatar?.assetKey).toBe('mumbai')
+  })
+
+  it('saves and retrieves configurable match rules', async () => {
+    await repo.createMatch(mockMatch, mockTeams, mockPlayers)
+
+    const gullyRules: any = {
+      id: 'rules-test-1',
+      presetName: 'gully_cricket',
+      presetDisplayName: 'Gully Cricket (Street Rules)',
+      version: 1,
+      oversPerInnings: 5,
+      ballsPerOver: 6,
+      playersPerSide: 6,
+      wicketsAllOut: 5,
+      lastManStands: true,
+      oneTipOneHand: {
+        enabled: true,
+        maxBounces: 1,
+        maxHandsAllowed: 1,
+        canTouchWallBeforeCatch: false,
+        bowlerCredited: true,
+        dismissalLabel: 'One Tip One Hand',
+      },
+      mankad: { enabled: true, bowlerCredited: false, allowWarningFirst: true },
+      hitWicket: { enabled: true, bowlerCredited: true, freeHitExemption: true },
+      wallRules: {
+        enabled: true,
+        directHitOutcome: 'four_runs',
+        tapOutcome: 'one_run',
+        carOrWindowDirectHitOut: true,
+        canCatchOffWall: false,
+      },
+      paceCall: { enabled: false, status: 'PENDING_SPECIFICATION' },
+      deadBall: {
+        allowManualDeclaration: true,
+        defaultRepeatDelivery: true,
+        awardPenaltyRuns: false,
+        penaltyRunsAmount: 0,
+      },
+      lbwEnabled: false,
+      wideReBowl: true,
+      wideRunsAwarded: 1,
+      noBallReBowl: true,
+      noBallRunsAwarded: 1,
+      noBallFreeHit: false,
+      byesEnabled: true,
+      legByesEnabled: false,
+      overthrowsEnabled: true,
+    }
+
+    await repo.saveMatchRules(gullyRules, 'test-match-1')
+
+    const loadedRules = await repo.getMatchRules('test-match-1')
+    expect(loadedRules?.presetName).toBe('gully_cricket')
+    expect(loadedRules?.oneTipOneHand.enabled).toBe(true)
+    expect(loadedRules?.wallRules.directHitOutcome).toBe('four_runs')
+
+    const match = await repo.getMatch('test-match-1')
+    expect(match?.rulesPreset).toBe('gully_cricket')
+  })
 })

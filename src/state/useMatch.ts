@@ -8,6 +8,7 @@ import type {
   ExtraInfo,
   WicketInfo,
   ShotZone,
+  WallContactInfo,
 } from '../engine/types'
 import { deriveInnings } from '../engine/innings'
 import { isLegalDelivery } from '../engine/delivery'
@@ -25,6 +26,7 @@ export interface AddBallParams {
   batterId?: string
   nonStrikerId?: string
   bowlerId?: string
+  wallContact?: WallContactInfo
 }
 
 export interface OverGroup {
@@ -399,6 +401,7 @@ export function useMatch(
         wicket: params.wicket ?? null,
         isBoundary4: params.isBoundary4 ?? false,
         isBoundary6: params.isBoundary6 ?? false,
+        wallContact: params.wallContact,
         timestamp: Date.now(),
       }
 

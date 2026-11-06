@@ -18,6 +18,9 @@ export interface WicketInfo {
   type: WicketType
   playerOutId: string
   fielderId?: string
+  runOutSubtype?: 'standard_runout' | 'mankad'
+  wasOneHanded?: boolean
+  bouncesBeforeCatch?: number
 }
 
 export interface Player {
@@ -38,9 +41,18 @@ export interface MatchConfig {
   noBallFreeHit: boolean
   lastManStands: boolean
   superOverOvers?: number
+  ballsPerOver?: number
+  matchRules?: import('../rules/types').MatchRules
 }
 
 export type ShotZone = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8
+
+export interface WallContactInfo {
+  wallId: string
+  contactType: 'direct_hit' | 'ground_tap' | 'hazard_window_or_car'
+  runsAwarded: number
+  isOut: boolean
+}
 
 export interface BallEvent {
   id: string
@@ -54,6 +66,7 @@ export interface BallEvent {
   isBoundary4: boolean
   isBoundary6: boolean
   shot?: { zone: ShotZone }
+  wallContact?: WallContactInfo
   timestamp: number
 }
 
